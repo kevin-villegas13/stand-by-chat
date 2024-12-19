@@ -12,7 +12,6 @@ import { Server, Socket } from 'socket.io';
 import { WsChatAccessGuard } from '../auth/guard/ws-chat-access.guard';
 import { WsEnableChat } from './decorators/ws-enable-chat.decorator';
 import { UseGuards } from '@nestjs/common';
-import { DataBaseService } from 'src/database/database.service';
 import { SaveMessageDto } from 'src/messaging/dto/save-message.dto';
 
 @WebSocketGateway({ namespace: 'chat', cors: true })

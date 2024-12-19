@@ -3,6 +3,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { DataBaseService } from 'src/database/database.service';
 import { SaveMessageDto } from './dto/save-message.dto';
+import { decryptMessage, encryptMessage } from 'src/common/utils/crypto.util';
 
 @Injectable()
 export class MessagingService {
@@ -24,19 +25,22 @@ export class MessagingService {
   // Para emitir un mensaje a la cola
   async publishMessage(queue: string, message: any) {
     console.log(`Enviando mensaje a la cola ${queue}:`, message);
-    return this.client.emit(queue, message);
+    const encryptedMessage = encryptMessage(message.content);
+    return this.client.emit(queue, { ...message, content: encryptedMessage });
   }
 
   // Para consumir un mensaje de la cola (debe ser llamado en el controlador o en un gateway)
   async consumeMessage(queue: string, callback: (message: any) => void) {
     console.log(`Escuchando mensajes en la cola ${queue}`);
     this.client.send(queue, {}).subscribe(async (message) => {
-      callback(message);
+      const decryptedMessage = decryptMessage(message.content);
+      callback({ ...message, content: decryptedMessage });
     });
   }
 
   async saveMessage(saveMessageDto: SaveMessageDto) {
     const { senderId, receiverId, content } = saveMessageDto;
+    const encryptedContent = encryptMessage(content);
 
     const chat = await this.dataService.chatsOnUsers.findFirst({
       where: {
@@ -51,7 +55,7 @@ export class MessagingService {
 
     const newMessage = await this.dataService.message.create({
       data: {
-        content,
+        content: encryptedContent,
         chatId: chat.chatId,
       },
     });
