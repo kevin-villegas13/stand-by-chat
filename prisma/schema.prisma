@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  username     String         @unique
+  email        String         @unique
+  following    Follow[]       @relation("Follower")
+  followers    Follow[]       @relation("Following")
+  ChatsOnUsers ChatsOnUsers[]
+}
+
+model Chat {
+  id           String         @id @default(cuid())
+  createdAt    DateTime       @default(now())
+  messages     Message[]
+  ChatsOnUsers ChatsOnUsers[]
+
+  @@map("chats")
+}
+
+model ChatsOnUsers {
+  chatId String
+  userId String
+
+  chat Chat @relation(fields: [chatId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([chatId, userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id])
+
+  @@map("messages")
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  follower    User   @relation("Follower", fields: [followerId], references: [id])
+  following   User   @relation("Following", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+}

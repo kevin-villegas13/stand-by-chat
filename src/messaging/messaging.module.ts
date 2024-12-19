@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MessagingService } from './messaging.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { DataBaseModule } from 'src/database/database.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         }),
       },
     ]),
+    DataBaseModule,
   ],
   providers: [MessagingService],
   exports: [MessagingService],

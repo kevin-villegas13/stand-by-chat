@@ -4,40 +4,71 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { MessagingService } from '../messaging/messaging.service';
 import { Server, Socket } from 'socket.io';
+import { WsChatAccessGuard } from '../auth/guard/ws-chat-access.guard';
+import { WsEnableChat } from './decorators/ws-enable-chat.decorator';
+import { UseGuards } from '@nestjs/common';
+import { DataBaseService } from 'src/database/database.service';
+import { SaveMessageDto } from 'src/messaging/dto/save-message.dto';
 
-@WebSocketGateway({ cors: true })
+@WebSocketGateway({ namespace: 'chat', cors: true })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
-  private connectedUsers: Map<string, Socket> = new Map();
-
   constructor(private readonly messagingService: MessagingService) {}
 
+  // Manejar la conexión de un nuevo cliente
   handleConnection(client: Socket) {
-    console.log('Client connected:', client.id);
-    this.connectedUsers.set(client.id, client);
+    console.log(`Cliente conectado: ${client.id}`);
   }
 
+  // Manejar desconexión de un cliente
   handleDisconnect(client: Socket) {
-    console.log('Client disconnected:', client.id);
-    this.connectedUsers.delete(client.id);
+    console.log(`Cliente desconectado: ${client.id}`);
   }
 
-  @SubscribeMessage('send_message')
+  // Manejar evento de un mensaje nuevo
+  @UseGuards(WsChatAccessGuard)
+  @SubscribeMessage('sendMessage')
   async handleMessage(
-    client: Socket,
-    payload: { to: string; message: string },
+    @ConnectedSocket() client: Socket,
+    @MessageBody() message: string,
   ) {
-    // Publicar mensaje en RabbitMQ
-    await this.messagingService.publishMessage('chat_queue', payload);
+    const senderId = Array.isArray(client.handshake.query.senderId)
+      ? client.handshake.query.senderId[0]
+      : client.handshake.query.senderId;
 
-    // Emitir mensaje al destinatario (si está conectado)
-    const recipient = this.connectedUsers.get(payload.to);
-    if (recipient) {
-      recipient.emit('receive_message', payload);
-    }
+    const receiverId = Array.isArray(client.handshake.query.receiverId)
+      ? client.handshake.query.receiverId[0]
+      : client.handshake.query.receiverId;
+
+    console.log(`Mensaje de ${senderId} a ${receiverId}: ${message}`);
+
+    const saveMessageDto: SaveMessageDto = {
+      senderId,
+      receiverId,
+      content: message,
+    };
+    await this.messagingService.saveMessage(saveMessageDto);
+
+    // Publicar el mensaje en RabbitMQ
+    this.messagingService.publishMessage('chat_queue', {
+      senderId,
+      receiverId,
+      content: message,
+    });
+
+    // Escuchar mensajes en la cola de RabbitMQ
+    this.messagingService.consumeMessage('chat_queue', (receivedMessage) => {
+      console.log('Mensaje recibido de RabbitMQ:', receivedMessage);
+      client.broadcast.emit('receiveMessage', receivedMessage.content);
+    });
+
+    // Emitir el mensaje a todos los clientes conectados
+    client.broadcast.emit('receiveMessage', message);
   }
 }
