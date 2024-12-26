@@ -9,20 +9,49 @@ import {
 } from '@nestjs/websockets';
 import { MessagingService } from '../messaging/messaging.service';
 import { Server, Socket } from 'socket.io';
-import { WsChatAccessGuard } from '../auth/guard/ws-chat-access.guard';
-import { WsEnableChat } from './decorators/ws-enable-chat.decorator';
+import { JwtWsAuthGuard } from 'src/auth/guard/jwt-socket.guard';
 import { UseGuards } from '@nestjs/common';
+import { ChatService } from './chat.service';
 import { SaveMessageDto } from 'src/messaging/dto/save-message.dto';
 
 @WebSocketGateway({ namespace: 'chat', cors: true })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
-  constructor(private readonly messagingService: MessagingService) {}
+  constructor(
+    private readonly messagingService: MessagingService,
+    private readonly chatService: ChatService,
+  ) {}
 
   // Manejar la conexión de un nuevo cliente
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     console.log(`Cliente conectado: ${client.id}`);
+
+    const chatId = Array.isArray(client.handshake.query.chatId)
+      ? client.handshake.query.chatId[0]
+      : client.handshake.query.chatId;
+
+    // Validar que el chat existe
+    const chatExists = await this.chatService.isChatValid(chatId);
+
+    if (chatExists) {
+      client.data.chatId = chatId;
+
+      // Unir al cliente a una sala específica para el chat
+      client.join(`chat-${chatId}`);
+      console.log(`Cliente ${client.id} conectado a la sala chat-${chatId}`);
+
+      // Emitir evento solo al cliente que se conecta
+      client.emit('chatEnabled', {
+        message: 'Chat habilitado exitosamente',
+        chatId: chatId,
+      });
+    } else {
+      console.log(
+        `El chat con ID ${chatId} no es válido. Desconectando cliente.`,
+      );
+      client.disconnect();
+    }
   }
 
   // Manejar desconexión de un cliente
@@ -31,33 +60,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Manejar evento de un mensaje nuevo
-  @UseGuards(WsChatAccessGuard)
+  @UseGuards(JwtWsAuthGuard)
   @SubscribeMessage('sendMessage')
   async handleMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() message: string,
   ) {
-    const senderId = Array.isArray(client.handshake.query.senderId)
-      ? client.handshake.query.senderId[0]
-      : client.handshake.query.senderId;
-
-    const receiverId = Array.isArray(client.handshake.query.receiverId)
-      ? client.handshake.query.receiverId[0]
-      : client.handshake.query.receiverId;
-
-    console.log(`Mensaje de ${senderId} a ${receiverId}: ${message}`);
+    const chatId = Array.isArray(client.handshake.query.chatId)
+      ? client.handshake.query.chatId[0]
+      : client.handshake.query.chatId;
 
     const saveMessageDto: SaveMessageDto = {
-      senderId,
-      receiverId,
+      chatId: Number(chatId),
       content: message,
     };
     await this.messagingService.saveMessage(saveMessageDto);
 
     // Publicar el mensaje en RabbitMQ
     this.messagingService.publishMessage('chat_queue', {
-      senderId,
-      receiverId,
+      chatId,
       content: message,
     });
 
@@ -67,7 +88,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.broadcast.emit('receiveMessage', receivedMessage.content);
     });
 
-    // Emitir el mensaje a todos los clientes conectados
     client.broadcast.emit('receiveMessage', message);
   }
 }

@@ -39,24 +39,20 @@ export class MessagingService {
   }
 
   async saveMessage(saveMessageDto: SaveMessageDto) {
-    const { senderId, receiverId, content } = saveMessageDto;
-    const encryptedContent = encryptMessage(content);
+    const { chatId, content } = saveMessageDto;
 
-    const chat = await this.dataService.chatsOnUsers.findFirst({
-      where: {
-        userId: { in: [senderId, receiverId] },
-      },
-      include: {
-        chat: true,
-      },
+    const chat = await this.dataService.chat.findUnique({
+      where: { id: chatId },
     });
 
-    if (!chat) throw new NotFoundException('No chat exists between the users');
+    if (!chat) throw new NotFoundException('El chat especificado no existe');
+
+    const encryptedContent = encryptMessage(content);
 
     const newMessage = await this.dataService.message.create({
       data: {
         content: encryptedContent,
-        chatId: chat.chatId,
+        chatId,
       },
     });
 

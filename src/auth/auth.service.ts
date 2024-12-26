@@ -69,32 +69,6 @@ export class AuthService {
       data: { followerId: follower.id, followingId: following.id },
     });
 
-    const existingChat = await this.dbService.chatsOnUsers.findFirst({
-      where: {
-        OR: [{ userId: follower.id }, { userId: following.id }],
-      },
-      select: {
-        chatId: true,
-      },
-    });
-
-    if (!existingChat) {
-      // Crear un nuevo chat
-      const newChat = await this.dbService.chat.create({
-        data: {
-          createdAt: new Date(),
-        },
-      });
-
-      // Asociar ambos usuarios al chat a través de ChatsOnUsers
-      await this.dbService.chatsOnUsers.createMany({
-        data: [
-          { chatId: newChat.id, userId: follower.id },
-          { chatId: newChat.id, userId: following.id },
-        ],
-      });
-    }
-
     return {
       accessToken: await this.jwtService.signAsync({
         username: follower.username,

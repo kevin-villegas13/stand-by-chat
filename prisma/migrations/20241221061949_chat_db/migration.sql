@@ -9,7 +9,7 @@ CREATE TABLE "User" (
 
 -- CreateTable
 CREATE TABLE "chats" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "chats_pkey" PRIMARY KEY ("id")
@@ -17,7 +17,7 @@ CREATE TABLE "chats" (
 
 -- CreateTable
 CREATE TABLE "ChatsOnUsers" (
-    "chatId" TEXT NOT NULL,
+    "chatId" INTEGER NOT NULL,
     "userId" TEXT NOT NULL,
 
     CONSTRAINT "ChatsOnUsers_pkey" PRIMARY KEY ("chatId","userId")
@@ -28,7 +28,7 @@ CREATE TABLE "messages" (
     "id" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "chatId" TEXT NOT NULL,
+    "chatId" INTEGER NOT NULL,
 
     CONSTRAINT "messages_pkey" PRIMARY KEY ("id")
 );
@@ -46,6 +46,15 @@ CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "ChatsOnUsers_chatId_idx" ON "ChatsOnUsers"("chatId");
+
+-- CreateIndex
+CREATE INDEX "ChatsOnUsers_userId_idx" ON "ChatsOnUsers"("userId");
+
+-- CreateIndex
+CREATE INDEX "messages_chatId_idx" ON "messages"("chatId");
 
 -- AddForeignKey
 ALTER TABLE "ChatsOnUsers" ADD CONSTRAINT "ChatsOnUsers_chatId_fkey" FOREIGN KEY ("chatId") REFERENCES "chats"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

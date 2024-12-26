@@ -7,7 +7,6 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { JwtGuard } from './guard/jwt.guard';
 import { AuthService } from './auth.service';
-import { WsChatAccessGuard } from './guard/ws-chat-access.guard';
 
 @Module({
   imports: [
@@ -26,7 +25,7 @@ import { WsChatAccessGuard } from './guard/ws-chat-access.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtGuard, WsChatAccessGuard],
+  providers: [AuthService, JwtStrategy, JwtGuard],
   exports: [JwtModule, PassportModule, AuthService],
 })
 export class AuthModule {}
